@@ -1,5 +1,6 @@
 import requests
 import time
+import json
 from requests.exceptions import HTTPError
 
 
@@ -109,9 +110,8 @@ def read_url(
     if data_from_server.status_code in range(400, 500):
         raise HTTPError(f'HTTP Error {data_from_server.status_code}')
     if data_from_server.status_code == 200:
-        print("OK")
         data_from_server.encoding = 'utf-8'
-        return data_from_server.json()
+        return data_from_server.content
     while maximum_attempt_count > 0:
         time.sleep(sleep_duration_between_attempts)
         read_url(url=url, maximum_attempt_count=maximum_attempt_count - 1,
@@ -120,16 +120,30 @@ def read_url(
 
 
 def fetch_episodes(url):
-    json_content = read_url(url)
+    content = read_url(url).decode('utf-8')
+    json_content = json.loads(content)
     list_episodes_in_json = json_content['episodes']
     max_page = json_content['numPages']
     for page in range(2, max_page + 1):
-        json_content = read_url(f'{url}?page={page}')
+        content = read_url(f'{url}?page={page}')
+        json_content = json.loads(content)
         list_episodes_in_json += json_content['episodes']
     list_episodes = []
     for ep in list_episodes_in_json:
         list_episodes.append(Episode.from_json(ep))
     return list_episodes
+
+
+def fetch_episode_html_page(episode):
+    return read_url(episode.page_url).decode('utf-8')
+
+
+def parse_broadcast_data_attribute(html_page):
+    beginning_flag = 'data-broadcast='
+    ending_flag = ' data-duration'
+    return json.\
+        loads(html_page[(html_page.find(beginning_flag) + 1 +
+                         len(beginning_flag)):html_page.find(ending_flag) - 1])
 
 
 if __name__ == "__main__":
@@ -138,3 +152,6 @@ if __name__ == "__main__":
     for ep in list_episodes:
         print(ep.title)
     print(len(list_episodes))
+    last_ep_html = fetch_episode_html_page(list_episodes[-1])
+    last_ep_broadcast = parse_broadcast_data_attribute(last_ep_html)
+    print(last_ep_broadcast)
