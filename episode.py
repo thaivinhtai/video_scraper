@@ -2,6 +2,7 @@ import requests
 import time
 import json
 from requests.exceptions import HTTPError
+from urllib.parse import urlparse
 
 
 class Episode:
@@ -145,6 +146,12 @@ def parse_broadcast_data_attribute(html_page):
         loads(html_page[(html_page.find(beginning_flag) + 1 +
                          len(beginning_flag)):html_page.find(ending_flag) - 1])
 
+def build_segment_url_pattern(broadcast_data):
+    urlparse_object =  urlparse(broadcast_data['files'][0]['url'])
+    return (f'{urlparse_object.scheme}{urlparse_object.netloc}' +
+            urlparse_object.path.replace('master.m3u8',
+                                         'segment{}_3_av.ts?null=0'))
+
 
 if __name__ == "__main__":
     list_episodes =\
@@ -152,6 +159,9 @@ if __name__ == "__main__":
     for ep in list_episodes:
         print(ep.title)
     print(len(list_episodes))
-    last_ep_html = fetch_episode_html_page(list_episodes[-1])
-    last_ep_broadcast = parse_broadcast_data_attribute(last_ep_html)
-    print(last_ep_broadcast)
+    first_ep_html = fetch_episode_html_page(list_episodes[0])
+    first_ep_broadcast = parse_broadcast_data_attribute(first_ep_html)
+    print(first_ep_broadcast)
+    segment_url_pattern = build_segment_url_pattern(first_ep_broadcast)
+    print(segment_url_pattern)
+    print(segment_url_pattern.format('1'))
