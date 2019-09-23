@@ -1,8 +1,28 @@
 import requests
 import time
 import json
+import os
+import urllib
+from urllib.request import urlretrieve
 from requests.exceptions import HTTPError
 from urllib.parse import urlparse
+
+
+_TEST_LINK = "http://www.tv5monde.com/emissions/episodes/merci-professeur.json"
+
+
+def __get_full_path(file):
+    """
+    get_full_path(file) -> return full path of file.
+    This function figures out exactly the path of file on system.
+    Required argument:
+        file    --  a string-type file name.
+    """
+    if file[0] == '~':
+        file = os.path.expanduser(file)
+    else:
+        file = os.path.realpath(file)
+    return file
 
 
 class Episode:
@@ -148,14 +168,40 @@ def parse_broadcast_data_attribute(html_page):
 
 def build_segment_url_pattern(broadcast_data):
     urlparse_object =  urlparse(broadcast_data['files'][0]['url'])
-    return (f'{urlparse_object.scheme}{urlparse_object.netloc}' +
+    return (f'{urlparse_object.scheme}://{urlparse_object.netloc}' +
             urlparse_object.path.replace('master.m3u8',
                                          'segment{}_3_av.ts?null=0'))
 
 
+def download_episode_video_segments(episode, path='.'):
+    path = __get_full_path(path)
+    if os.path.isfile(path) or os.path.islink(path):
+        return [], print('path is not a directory')
+    if not os.path.exists(path):
+        os.makedirs(path)
+    episode_html_page = fetch_episode_html_page(episode)
+    broadcast_data = parse_broadcast_data_attribute(episode_html_page)
+    segment_url_pattern = build_segment_url_pattern(broadcast_data)
+    segment_index = 1
+    episode_id = episode.episode_id
+    list_segments = []
+    while True:
+        try:
+            urlretrieve(segment_url_pattern.format(str(segment_index)),
+                        f'{path}/segment_{episode_id}_{segment_index}.ts')
+            list_segments.\
+                append(f'{path}/segment_{episode_id}_{segment_index}.ts')
+            segment_index += 1
+        except urllib.error.HTTPError:
+            break
+    return list_segments
+
+
+
+
 if __name__ == "__main__":
     list_episodes =\
-        fetch_episodes("http://www.tv5monde.com/emissions/episodes/merci-professeur.json")
+        fetch_episodes(_TEST_LINK)
     for ep in list_episodes:
         print(ep.title)
     print(len(list_episodes))
@@ -165,3 +211,4 @@ if __name__ == "__main__":
     segment_url_pattern = build_segment_url_pattern(first_ep_broadcast)
     print(segment_url_pattern)
     print(segment_url_pattern.format('1'))
+    print(download_episode_video_segments(list_episodes[0], path='./Movies'))
